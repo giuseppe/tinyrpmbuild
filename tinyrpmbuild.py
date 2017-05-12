@@ -31,7 +31,8 @@ class RpmWriter(object):
     SIGNATURE_VERSION = [0x01]
     SIGNATURE_RESERVED = [0x0] * 4
 
-    
+    RPMSIGTAG_PAYLOADSIZE = 1007
+
     RPMTAG_NAME = 1000
     RPMTAG_VERSION = 1001
     RPMTAG_RELEASE = 1002
@@ -115,20 +116,20 @@ class RpmWriter(object):
         while self.written % size != 0:
             self._writebytearray([0])
 
-    def _signature(self):
+    def _signature(self, payload_size):
         self._writebytearray(RpmWriter.SIGNATURE_MAGIC)
         self._writebytearray(RpmWriter.SIGNATURE_VERSION)
         self._writebytearray(RpmWriter.SIGNATURE_RESERVED)
         self._writebytearray(self._make_uint32(1))
         self._writebytearray(self._make_uint32(4))
 
-        self._writebytearray(self._make_uint32(1000)) # sigtag_size
+        self._writebytearray(self._make_uint32(RpmWriter.RPMSIGTAG_PAYLOADSIZE)) # sigtag_size
         self._writebytearray(self._make_uint32(4)) # int32
         self._writebytearray(self._make_uint32(0)) # offset
         self._writebytearray(self._make_uint32(1)) # count
 
         # payload
-        self._writebytearray(self._make_uint32(0))
+        self._writebytearray(self._make_uint32(payload_size))
 
         self.pad(8)
 
@@ -152,6 +153,7 @@ class RpmWriter(object):
         self._writebytearray(store)
 
     def _payload(self, out):
+        uncompressed_size = 0
         def try_read(stdout, gzip_out, out):
             while True:
                 readable, _, _ = select.select([stdout], [], [], 0)
@@ -159,16 +161,32 @@ class RpmWriter(object):
                     break
                 data = os.read(stdout.fileno(), 4096)
                 gzip_out.write(data)
+                uncompressed_size += len(data)
 
-        with open(os.devnull) as DEVNULL, gzip.GzipFile(fileobj=out, mode="w") as gzip_out:
-            cpio_process = subprocess.Popen(["cpio", "-H", "crc", "-no"], stderr=DEVNULL, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        with gzip.GzipFile(fileobj=out, mode="w") as gzip_out:
+            cpio_process = subprocess.Popen(["cpio", "-D", self.root, "-H", "crc", "-no"], stderr=sys.stderr, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             for f in self.all_files:
-                cpio_process.stdin.write(f + "\n")
+                filename = os.path.relpath(f, self.root)
+                cpio_process.stdin.write(filename + "\n")
                 try_read(cpio_process.stdout, gzip_out, out)
 
             cpio_process.stdin.close()
 
-            shutil.copyfileobj(cpio_process.stdout, gzip_out)
+            class Reader():
+                def __init__(self, pipe):
+                    self.pipe = pipe
+                    self.bytes_read = 0
+
+                def read(self, size):
+                    data = self.pipe.read(4096)
+                    self.bytes_read += len(data)
+                    return data
+
+            reader = Reader(cpio_process.stdout)
+            shutil.copyfileobj(reader, gzip_out)
+            uncompressed_size += reader.bytes_read
+        out.flush()
+        return uncompressed_size
 
     def _make_array_uint32(self, ints):
         ret = bytearray()
@@ -234,7 +252,7 @@ class RpmWriter(object):
         self.add_header(RpmWriter.RPMTAG_PAYLOADCOMPRESSOR, 6, 1, "gzip\0")
 
         with tempfile.NamedTemporaryFile() as payload:
-            self._payload(payload)
+            payloadsize = self._payload(payload)
 
             filedigests = [self.get_sha1(payload.name)]
             filedigests = [self.get_sha1(x) for x in self.all_files]
@@ -244,11 +262,12 @@ class RpmWriter(object):
             self.add_header(RpmWriter.RPMTAG_PAYLOADDIGESTALGO, 4, 1, self._make_uint32(RpmWriter.PGPHASHALGO_SHA1), pad=4)
             self.add_header(RpmWriter.RPMTAG_PAYLOADDIGEST, 8, 1, self._make_array_strings([self.get_sha1(payload.name)]))
 
+            payload.seek(0)
+
             self._rpmlead()
-            self._signature()
+            self._signature(payloadsize)
             self._header()
 
-            payload.seek(0)
             shutil.copyfileobj(payload, self.out)
 
 
