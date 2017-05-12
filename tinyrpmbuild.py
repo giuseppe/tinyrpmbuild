@@ -48,6 +48,15 @@ class RpmWriter(object):
     RPMTAG_FILEUSERNAME = 1039
     RPMTAG_FILEGROUPNAME = 1040
 
+    RPMTAG_PROVIDENAME		= 1047
+    RPMTAG_REQUIRENAME		= 1049
+    RPMTAG_REQUIREVERSION	= 1050
+    RPMTAG_CONFLICTFLAGS	= 1053
+    RPMTAG_CONFLICTNAME		= 1054
+    RPMTAG_CONFLICTVERSION	= 1055
+
+    RPMTAG_OBSOLETENAME		= 1090
+
     RPMTAG_PAYLOADFORMAT	= 1124
     RPMTAG_PAYLOADCOMPRESSOR	= 1125
 
@@ -73,6 +82,18 @@ class RpmWriter(object):
                 m.update(data)
         return m.hexdigest()
 
+    def add_require(self, name, version):
+        self.require.append([name, version])
+
+    def add_provide(self, name):
+        self.provide.append(name)
+
+    def add_obsolete(self, name):
+        self.obsolete.append(name)
+
+    def add_conflict(self, name, version):
+        self.conflict.append([name, version])
+
     def __init__(self, out, root, name, version, release):
         self.out = out
         self.name = name
@@ -82,10 +103,14 @@ class RpmWriter(object):
         self.written = 0
         self.root = root
         self.all_files = []
+        self.require = []
+        self.provide = []
+        self.obsolete = []
+        self.conflict = []
 
     def add_header(self, tag, typ, count, value, pad=1):
         self.headers.append([tag, typ, count, value, pad])
-        
+
     def _make_uint16(self, val):
         return bytearray(struct.pack(">H", val))
 
@@ -250,6 +275,21 @@ class RpmWriter(object):
 
         self.add_header(RpmWriter.RPMTAG_PAYLOADFORMAT, 6, 1, "cpio\0")
         self.add_header(RpmWriter.RPMTAG_PAYLOADCOMPRESSOR, 6, 1, "gzip\0")
+
+        if len(self.require) > 0:
+            requirename = [x[0] for x in self.require]
+            requireversion = [x[1] for x in self.require]
+            self.add_header(RpmWriter.RPMTAG_REQUIRENAME, 8, len(requirename), self._make_array_strings(requirename))
+            self.add_header(RpmWriter.RPMTAG_REQUIREVERSION, 8, len(requireversion), self._make_array_strings(requireversion))
+        if len(self.provide) > 0:
+            self.add_header(RpmWriter.RPMTAG_PROVIDENAME, 8, len(self.provide), self._make_array_strings(self.provide))
+        if len(self.obsolete) > 0:
+            self.add_header(RpmWriter.RPMTAG_OBSOLETENAME, 8, len(self.obsolete), self._make_array_strings(self.obsolete))
+        if len(self.conflict) > 0:
+            conflictname = [x[0] for x in self.conflict]
+            conflictversion = [x[1] for x in self.conflict]
+            self.add_header(RpmWriter.RPMTAG_CONFLICTNAME, 8, len(conflictname), self._make_array_strings(conflictname))
+            self.add_header(RpmWriter.RPMTAG_CONFLICTVERSION, 8, len(conflictversion), self._make_array_strings(conflictversion))
 
         with tempfile.NamedTemporaryFile() as payload:
             payloadsize = self._payload(payload)
