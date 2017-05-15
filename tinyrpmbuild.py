@@ -43,7 +43,10 @@ class RpmWriter(object):
     RPMTAG_BASENAMES = 1117
     RPMTAG_DIRNAMES = 1118
     RPMTAG_FILEMODES = 1030
+    RPMTAG_FILERDEVS = 1033
+    RPMTAG_FILEMTIMES = 1034
     RPMTAG_FILEDIGESTS = 1035
+    RPMTAG_FILELINKTOS = 1036
     RPMTAG_FILEFLAGS = 1037
     RPMTAG_FILEUSERNAME = 1039
     RPMTAG_FILEGROUPNAME = 1040
@@ -56,6 +59,8 @@ class RpmWriter(object):
     RPMTAG_CONFLICTVERSION	= 1055
 
     RPMTAG_OBSOLETENAME		= 1090
+    RPMTAG_FILEINODES		= 1096
+    RPMTAG_FILELANGS		= 1097
 
     RPMTAG_PAYLOADFORMAT	= 1124
     RPMTAG_PAYLOADCOMPRESSOR	= 1125
@@ -263,6 +268,11 @@ class RpmWriter(object):
         fileflags = [RpmWriter.RPMFILE_CONFIG if make_dir_name(x).startswith("/etc/") else 0 for x in self.all_files]
         self.add_header(RpmWriter.RPMTAG_FILEFLAGS, 4, len(basenames), self._make_array_uint32(fileflags), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILESIZES, 4, len(basenames), self._make_array_uint32([x.st_size for x in all_stats]), pad=4)
+        self.add_header(RpmWriter.RPMTAG_FILELINKTOS, 8, len(basenames), self._make_array_strings([""] * len(basenames)))
+        self.add_header(RpmWriter.RPMTAG_FILEMTIMES, 4, len(all_stats), self._make_array_uint32([0 for x in all_stats]), pad=4)
+        self.add_header(RpmWriter.RPMTAG_FILERDEVS, 3, len(all_stats), self._make_array_uint16([0 for x in all_stats]), pad=2)
+        self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32([0 for x in all_stats]), pad=4)
+        self.add_header(RpmWriter.RPMTAG_FILELANGS, 8, len(all_stats), self._make_array_strings([""] * len(all_stats)), pad=4)
 
         filemodes = [x.st_mode for x in all_stats]
         self.add_header(RpmWriter.RPMTAG_FILEMODES, 3, len(basenames), self._make_array_uint16(filemodes), pad=2)
