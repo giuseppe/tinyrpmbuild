@@ -260,7 +260,7 @@ class RpmWriter(object):
         self.add_header(RpmWriter.RPMTAG_DIRINDEXES, 4, len(dirindexes), self._make_array_uint32(dirindexes), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILEUSERNAME, 8, len(basenames), self._make_array_strings(["root"] * len(basenames)))
         self.add_header(RpmWriter.RPMTAG_FILEGROUPNAME, 8, len(basenames), self._make_array_strings(["root"] * len(basenames)))
-        fileflags = [RPMFILE_CONFIG if x.startswith("/etc/") else 0 for x in self.all_files]
+        fileflags = [RpmWriter.RPMFILE_CONFIG if make_dir_name(x).startswith("/etc/") else 0 for x in self.all_files]
         self.add_header(RpmWriter.RPMTAG_FILEFLAGS, 4, len(basenames), self._make_array_uint32(fileflags), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILESIZES, 4, len(basenames), self._make_array_uint32([x.st_size for x in all_stats]), pad=4)
 
