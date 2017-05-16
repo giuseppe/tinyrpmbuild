@@ -36,6 +36,8 @@ class RpmWriter(object):
     RPMTAG_NAME = 1000
     RPMTAG_VERSION = 1001
     RPMTAG_RELEASE = 1002
+    RPMTAG_SUMMARY = 1004
+    RPMTAG_DESCRIPTION = 1005
     RPMTAG_OS = 1021
     RPMTAG_ARCH = 1022
     RPMTAG_FILESIZES = 1028
@@ -99,7 +101,7 @@ class RpmWriter(object):
     def add_conflict(self, name, version):
         self.conflict.append([name, version])
 
-    def __init__(self, out, root, name, version, release):
+    def __init__(self, out, root, name, version, release, summary='', description=''):
         self.out = out
         self.name = name
         self.version = version
@@ -112,6 +114,8 @@ class RpmWriter(object):
         self.provide = []
         self.obsolete = []
         self.conflict = []
+        self.summary = summary
+        self.description = description
 
     def add_header(self, tag, typ, count, value, pad=1):
         self.headers.append([tag, typ, count, value, pad])
@@ -282,6 +286,9 @@ class RpmWriter(object):
         self.add_header(RpmWriter.RPMTAG_RELEASE, 6, 1, "%s\0" % self.release)
         self.add_header(RpmWriter.RPMTAG_OS, 6, 1, "linux\0")
         self.add_header(RpmWriter.RPMTAG_ARCH, 6, 1, "noarch\0")
+
+        self.add_header(RpmWriter.RPMTAG_SUMMARY, 6, 1, self.summary + "\0")
+        self.add_header(RpmWriter.RPMTAG_DESCRIPTION, 6, 1, self.description + "\0")
 
         self.add_header(RpmWriter.RPMTAG_PAYLOADFORMAT, 6, 1, "cpio\0")
         self.add_header(RpmWriter.RPMTAG_PAYLOADCOMPRESSOR, 6, 1, "gzip\0")
