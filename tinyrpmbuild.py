@@ -105,7 +105,7 @@ class RpmWriter(object):
     def add_conflict(self, name, version):
         self.conflict.append([name, version])
 
-    def __init__(self, out, root, name, version, release, summary='', description='', license='gpl2', changelog='', url='', group=''):
+    def __init__(self, out, root, name, version, release, summary='', description='', license='gpl2', changelog='', url='', group='', stderr=sys.stderr):
         self.out = out
         self.name = name
         self.version = version
@@ -124,6 +124,7 @@ class RpmWriter(object):
         self.changelog = changelog
         self.url = url
         self.group = group
+        self.stderr = stderr
 
     def add_header(self, tag, typ, count, value, pad=1):
         self.headers.append([tag, typ, count, value, pad])
@@ -206,7 +207,7 @@ class RpmWriter(object):
                 uncompressed_size += len(data)
 
         with gzip.GzipFile(fileobj=out, mode="w") as gzip_out:
-            cpio_process = subprocess.Popen(["cpio", "-D", self.root, "-H", "crc", "-no"], stderr=sys.stderr, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            cpio_process = subprocess.Popen(["cpio", "-D", self.root, "-H", "crc", "-no"], stderr=self.stderr, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             for f in self.all_files:
                 filename = os.path.relpath(f, self.root)
                 cpio_process.stdin.write(filename + "\n")
@@ -345,6 +346,6 @@ if __name__ == "__main__":
         sys.stderr.write("Usage tinyrpmbuild.py TREE RPM-FILE NAME\n")
         sys.exit(1)
     tree, rpm_file, name = sys.argv[1:4]
-    with open(rpm_file, "w") as f:
-        writer = RpmWriter(f, tree, name, "1", "1")
+    with open(rpm_file, "w") as f, open('/dev/null') as stderr:
+        writer = RpmWriter(f, tree, name, "1", "1", stderr=stderr)
         writer.generate()
