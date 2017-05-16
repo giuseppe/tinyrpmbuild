@@ -269,7 +269,7 @@ class RpmWriter(object):
         self.add_header(RpmWriter.RPMTAG_FILEFLAGS, 4, len(basenames), self._make_array_uint32(fileflags), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILESIZES, 4, len(basenames), self._make_array_uint32([x.st_size for x in all_stats]), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILELINKTOS, 8, len(basenames), self._make_array_strings([""] * len(basenames)))
-        self.add_header(RpmWriter.RPMTAG_FILEMTIMES, 4, len(all_stats), self._make_array_uint32([0 for x in all_stats]), pad=4)
+        self.add_header(RpmWriter.RPMTAG_FILEMTIMES, 4, len(all_stats), self._make_array_uint32([x.st_mtime for x in all_stats]), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILERDEVS, 3, len(all_stats), self._make_array_uint16([0 for x in all_stats]), pad=2)
         self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32([0 for x in all_stats]), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILELANGS, 8, len(all_stats), self._make_array_strings([""] * len(all_stats)), pad=4)
