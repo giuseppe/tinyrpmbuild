@@ -17,12 +17,12 @@ echo configuration > $TMPDIR/root/etc/a-conf-file
 
 tinyrpmbuild.py $TMPDIR/root $TMPDIR/rpm.rpm magicpackage
 rpm -qlp $TMPDIR/rpm.rpm > list_files
-grep "/a/b/c/file" list_files
-grep "/a/b/c/file2" list_files
+grep "/a/b/c/file$" list_files
+grep "/a/b/c/file2$" list_files
 
 # rpm returns 1 for some reason, disable the errors for now...
 set +xeuo pipefail
-rpm -q --qf '[%{filenames}: %{fileflags}\n]' $TMPDIR/rpm.rpm > rpm_out
+rpm -qp --qf '[%{filenames}: %{fileflags}\n]' $TMPDIR/rpm.rpm > rpm_out
 set -xeuo pipefail
 grep -q "/etc/a-conf-file:.*1" rpm_out
 
