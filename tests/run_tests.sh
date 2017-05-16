@@ -35,6 +35,23 @@ tinyrpmbuild.py $TMPDIR/rootfs $TMPDIR/rpm.rpm packagebigfile
 rpm2cpio $TMPDIR/rpm.rpm | cpio -iv --to-stdout dir/bigfile > $TMPDIR/bigfileextracted
 cmp $TMPDIR/bigfileextracted $TMPDIR/rootfs/dir/bigfile
 
+# Use a smaller file for the torture tests
+dd if=/dev/urandom of=$TMPDIR/rootfs/dir/bigfile count=1 bs=1M
+for i in $(seq 1 100); do
+    dd if=/dev/urandom of=$TMPDIR/rootfs/dir/rndseed count=$(($i * 3)) bs=1k
+    dd if=/dev/zero of=$TMPDIR/rootfs/dir/zeros count=$(($i * 3)) bs=1k
+    tinyrpmbuild.py $TMPDIR/rootfs $TMPDIR/rpm.rpm torturerpm
+
+    rpm2cpio $TMPDIR/rpm.rpm | cpio -iv --to-stdout dir/zeros > $TMPDIR/zeros
+    cmp $TMPDIR/rootfs/dir/zeros $TMPDIR/zeros
+
+    rpm2cpio $TMPDIR/rpm.rpm | cpio -iv --to-stdout dir/rndseed > $TMPDIR/rndseedextract
+    cmp $TMPDIR/rootfs/dir/rndseed $TMPDIR/rndseedextract
+
+    rpm2cpio $TMPDIR/rpm.rpm | cpio -iv --to-stdout dir/bigfile > $TMPDIR/bigfileextracted
+    cmp $TMPDIR/bigfileextracted $TMPDIR/rootfs/dir/bigfile
+done
+
 if test `id -u` == 0; then
     $SRCDIR/run_root.sh
     exit 0
