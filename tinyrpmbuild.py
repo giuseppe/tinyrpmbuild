@@ -108,7 +108,7 @@ class RpmWriter(object):
     def add_conflict(self, name, version):
         self.conflict.append([name, version])
 
-    def __init__(self, out, root, name, version, release, summary='', description='', license='gpl2', changelog='', url='', group='', stderr=sys.stderr):
+    def __init__(self, out, root, name, version, release, summary='', description='', license='gpl2', changelog='', url='', group='', stderr=sys.stderr, whitelist=None):
         self.out = out
         self.name = name
         self.version = version
@@ -128,6 +128,7 @@ class RpmWriter(object):
         self.url = url
         self.group = group
         self.stderr = stderr
+        self.whitelist = set(whitelist) if whitelist is not None else None
 
     def add_header(self, tag, typ, count, value, pad=1):
         self.headers.append([tag, typ, count, value, pad])
@@ -258,7 +259,9 @@ class RpmWriter(object):
         for root, _, files in os.walk(self.root):
                 for f in files:
                     path = os.path.join(root, f)
-                    self.all_files.append(path)
+                    relpath = os.path.relpath(path, self.root)
+                    if self.whitelist is None or "/%s" % relpath in self.whitelist:
+                        self.all_files.append(path)
         self.all_files.sort()
         dirs = set()
         for i in self.all_files:
