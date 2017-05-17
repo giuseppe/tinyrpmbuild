@@ -85,13 +85,16 @@ class RpmWriter(object):
 
     def get_sha1(self, path):
         m = hashlib.sha1()
-        with open(path, 'r') as f:
-            while True:
-                data = os.read(f.fileno(), 4096)
-                if len(data) == 0:
-                    break
-                m.update(data)
-        return m.hexdigest()
+        try:
+            with open(path, 'r') as f:
+                while True:
+                    data = os.read(f.fileno(), 4096)
+                    if len(data) == 0:
+                        break
+                    m.update(data)
+            return m.hexdigest()
+        except IOError:
+            return ""
 
     def add_require(self, name, version):
         self.require.append([name, version])
@@ -189,7 +192,7 @@ class RpmWriter(object):
             header_section += self._make_uint32(v[1]) # type
             header_section += self._make_uint32(len(store)) # offset
             header_section += self._make_uint32(v[2]) # count
-            store += v[3] # value
+            store += bytearray(str(v[3])) # value
         self._writebytearray(self._make_uint32(len(self.headers)))
         self._writebytearray(self._make_uint32(len(store)))
         self._writebytearray(header_section)
@@ -198,20 +201,22 @@ class RpmWriter(object):
     def _payload(self, out):
         uncompressed_size = 0
         def try_read(stdout, gzip_out, out):
+            written = 0
             while True:
                 readable, _, _ = select.select([stdout], [], [], 0)
                 if len(readable) == 0:
                     break
                 data = os.read(stdout.fileno(), 4096)
                 gzip_out.write(data)
-                uncompressed_size += len(data)
+                written += len(data)
+            return written
 
         with gzip.GzipFile(fileobj=out, mode="w") as gzip_out:
             cpio_process = subprocess.Popen(["cpio", "-D", self.root, "-H", "crc", "-no"], stderr=self.stderr, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             for f in self.all_files:
                 filename = os.path.relpath(f, self.root)
                 cpio_process.stdin.write(filename + "\n")
-                try_read(cpio_process.stdout, gzip_out, out)
+                uncompressed_size += try_read(cpio_process.stdout, gzip_out, out)
 
             cpio_process.stdin.close()
 
@@ -253,7 +258,6 @@ class RpmWriter(object):
                     path = os.path.join(root, f)
                     self.all_files.append(path)
         self.all_files.sort()
-
         dirs = set()
         for i in self.all_files:
             dirs.add(os.path.dirname(i))
@@ -283,13 +287,14 @@ class RpmWriter(object):
         fileflags = [RpmWriter.RPMFILE_CONFIG if make_dir_name(x).startswith("/etc/") else 0 for x in self.all_files]
         self.add_header(RpmWriter.RPMTAG_FILEFLAGS, 4, len(basenames), self._make_array_uint32(fileflags), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILESIZES, 4, len(basenames), self._make_array_uint32([x.st_size for x in all_stats]), pad=4)
-        self.add_header(RpmWriter.RPMTAG_FILELINKTOS, 8, len(basenames), self._make_array_strings([""] * len(basenames)))
+        links = [os.readlink(x) if os.path.islink(x) else "" for x in self.all_files]
+        self.add_header(RpmWriter.RPMTAG_FILELINKTOS, 8, len(basenames), self._make_array_strings(links))
         self.add_header(RpmWriter.RPMTAG_FILEMTIMES, 4, len(all_stats), self._make_array_uint32([x.st_mtime for x in all_stats]), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILERDEVS, 3, len(all_stats), self._make_array_uint16([0 for x in all_stats]), pad=2)
-        self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32(range(len(all_stats))), pad=4)
+        self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32(range(1, 1+len(all_stats))), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILELANGS, 8, len(all_stats), self._make_array_strings([""] * len(all_stats)), pad=4)
 
-        filemodes = [x.st_mode for x in all_stats]
+        filemodes = [x.st_mode if x is not None else 0 for x in all_stats]
         self.add_header(RpmWriter.RPMTAG_FILEMODES, 3, len(basenames), self._make_array_uint16(filemodes), pad=2)
 
         self.add_header(RpmWriter.RPMTAG_NAME, 6, 1, "%s\0" % self.name)
@@ -326,7 +331,6 @@ class RpmWriter(object):
         with tempfile.NamedTemporaryFile() as payload:
             payloadsize = self._payload(payload)
 
-            filedigests = [self.get_sha1(payload.name)]
             filedigests = [self.get_sha1(x) for x in self.all_files]
             self.add_header(RpmWriter.RPMTAG_FILEDIGESTALGO, 4, 1, self._make_uint32(RpmWriter.PGPHASHALGO_SHA1), pad=4)
             self.add_header(RpmWriter.RPMTAG_FILEDIGESTS, 8, len(filedigests), self._make_array_strings(filedigests))
