@@ -3,7 +3,6 @@ import sys
 import struct
 import subprocess
 import select
-import StringIO
 import gzip
 import hashlib
 import tempfile
@@ -35,7 +34,7 @@ class RpmWriter(object):
     RPMTAG_RELEASE = 1002
     RPMTAG_SUMMARY = 1004
     RPMTAG_DESCRIPTION = 1005
-    RPMTAG_LICENSE = 1014
+    RPMTAG_LICENSE_ = 1014
     RPMTAG_GROUP = 1016
     RPMTAG_CHANGELOG = 1017
     RPMTAG_URL = 1020
@@ -105,7 +104,7 @@ class RpmWriter(object):
     def add_conflict(self, name, version):
         self.conflict.append([name, version])
 
-    def __init__(self, out, root, name, version, release, summary='', description='', license='gpl2', changelog='', url='', group='', stderr=sys.stderr, whitelist=None):
+    def __init__(self, out, root, name, version, release, summary='', description='', license_='gpl2', changelog='', url='', group='', stderr=sys.stderr, whitelist=None):
         self.out = out
         self.name = name
         self.version = version
@@ -120,7 +119,7 @@ class RpmWriter(object):
         self.conflict = []
         self.summary = summary
         self.description = description
-        self.license = license
+        self.license_ = license_
         self.changelog = changelog
         self.url = url
         self.group = group
@@ -183,7 +182,7 @@ class RpmWriter(object):
         self._writebytearray(RpmWriter.HEADER_MAGIC)
         self._writebytearray(RpmWriter.HEADER_VERSION)
         self._writebytearray(RpmWriter.HEADER_RESERVED)
-        for i, v in enumerate(self.headers):
+        for v in self.headers:
             while (len(store) % v[4]) != 0:
                 store.append(0x0)
             header_section += self._make_uint32(v[0]) # tag
@@ -198,7 +197,7 @@ class RpmWriter(object):
 
     def _payload(self, out):
         uncompressed_size = 0
-        def try_read(stdout, gzip_out, out):
+        def try_read(stdout, gzip_out):
             written = 0
             while True:
                 readable, _, _ = select.select([stdout], [], [], 0)
@@ -214,7 +213,7 @@ class RpmWriter(object):
             for f in self.all_files:
                 filename = os.path.relpath(f, self.root)
                 cpio_process.stdin.write(filename + "\n")
-                uncompressed_size += try_read(cpio_process.stdout, gzip_out, out)
+                uncompressed_size += try_read(cpio_process.stdout, gzip_out)
 
             cpio_process.stdin.close()
 
@@ -224,7 +223,7 @@ class RpmWriter(object):
                     self.bytes_read = 0
 
                 def read(self, size):
-                    data = self.pipe.read(4096)
+                    data = self.pipe.read(min(4096, size))
                     self.bytes_read += len(data)
                     return data
 
@@ -254,11 +253,11 @@ class RpmWriter(object):
     def generate(self):
         self.all_files = []
         for root, _, files in os.walk(self.root):
-                for f in files:
-                    path = os.path.join(root, f)
-                    relpath = os.path.relpath(path, self.root)
-                    if self.whitelist is None or "/%s" % relpath in self.whitelist:
-                        self.all_files.append(path)
+            for f in files:
+                path = os.path.join(root, f)
+                relpath = os.path.relpath(path, self.root)
+                if self.whitelist is None or "/%s" % relpath in self.whitelist:
+                    self.all_files.append(path)
         self.all_files.sort()
         dirs = set()
         for i in self.all_files:
@@ -293,7 +292,8 @@ class RpmWriter(object):
         self.add_header(RpmWriter.RPMTAG_FILELINKTOS, 8, len(basenames), self._make_array_strings(links))
         self.add_header(RpmWriter.RPMTAG_FILEMTIMES, 4, len(all_stats), self._make_array_uint32([x.st_mtime for x in all_stats]), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILERDEVS, 3, len(all_stats), self._make_array_uint16([0 for x in all_stats]), pad=2)
-        self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32(range(1, 1+len(all_stats))), pad=4)
+        inodes = [i for i in range(1, 1+len(all_stats))]
+        self.add_header(RpmWriter.RPMTAG_FILEINODES, 4, len(all_stats), self._make_array_uint32(inodes), pad=4)
         self.add_header(RpmWriter.RPMTAG_FILELANGS, 8, len(all_stats), self._make_array_strings([""] * len(all_stats)), pad=4)
 
         filemodes = [x.st_mode if x is not None else 0 for x in all_stats]
@@ -307,7 +307,7 @@ class RpmWriter(object):
 
         self.add_header(RpmWriter.RPMTAG_SUMMARY, 6, 1, self.summary + "\0")
         self.add_header(RpmWriter.RPMTAG_DESCRIPTION, 6, 1, self.description + "\0")
-        self.add_header(RpmWriter.RPMTAG_LICENSE, 6, 1, self.license + "\0")
+        self.add_header(RpmWriter.RPMTAG_LICENSE_, 6, 1, self.license_ + "\0")
         self.add_header(RpmWriter.RPMTAG_CHANGELOG, 6, 1, self.changelog + "\0")
         self.add_header(RpmWriter.RPMTAG_URL, 6, 1, self.url + "\0")
         self.add_header(RpmWriter.RPMTAG_GROUP, 6, 1, self.group + "\0")
