@@ -269,8 +269,10 @@ class RpmWriter(object):
             dirindexes.append(dir_index.get(os.path.dirname(i)))
             basenames.append(os.path.basename(i))
 
-        all_stats = [os.stat(x) for x in self.all_files]
+        all_stats = [os.lstat(x) for x in self.all_files]
         def make_dir_name(x):
+            if x == self.root:
+                return "/"
             return "/%s/" % os.path.relpath(x, self.root)
 
         self.add_header(RpmWriter.RPMTAG_DIRNAMES, 8, len(dirs), self._make_array_strings([make_dir_name(x) for x in dirs]))
