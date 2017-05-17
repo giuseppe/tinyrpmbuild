@@ -233,6 +233,8 @@ class RpmWriter(object):
             reader = Reader(cpio_process.stdout)
             shutil.copyfileobj(reader, gzip_out)
             uncompressed_size += reader.bytes_read
+            if cpio_process.wait() != 0:
+                raise Exception("Error from the cpio process")
         out.flush()
         return uncompressed_size
 
