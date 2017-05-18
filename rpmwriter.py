@@ -144,7 +144,7 @@ class RpmWriter(object):
             name = "%s-%s-%s" % (name, version, release)
             if len(name) > 65:
                 name = name[:65]
-            return bytearray(name) + bytearray([0] * (66 - len(name)))
+            return bytearray(str(name)) + bytearray([0] * (66 - len(name)))
         self._writebytearray(RpmWriter.MAGIC)
         self._writebytearray(RpmWriter.MAJOR)
         self._writebytearray(RpmWriter.MINOR)
