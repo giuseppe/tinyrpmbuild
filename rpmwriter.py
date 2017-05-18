@@ -127,24 +127,36 @@ class RpmWriter(object):
         self.whitelist = set(whitelist) if whitelist is not None else None
 
     def add_header(self, tag, typ, count, value, pad=1):
+        try:
+            # this fails on python3
+            if isinstance(value, unicode):
+                value = bytearray(value.encode('ascii'))
+        except:
+            pass
+        if isinstance(value, str):
+            value = bytearray(value.encode('ascii'))
+        if not isinstance(value, bytearray):
+            value = bytearray(value)
         self.headers.append([tag, typ, count, value, pad])
 
     def _make_uint16(self, val):
-        return bytearray(struct.pack(">H", val))
+        return bytearray(struct.pack(">H", int(val)))
 
     def _make_uint32(self, val):
-        return bytearray(struct.pack(">I", val))
+        return bytearray(struct.pack(">I", int(val)))
 
     def _writebytearray(self, data):
         self.written += len(data)
-        self.out.write(bytearray(data))
+        if not isinstance(data, bytearray):
+            data = bytearray(data)
+        self.out.write(data)
 
     def _rpmlead(self):
         def get_name(name, version, release):
             name = "%s-%s-%s" % (name, version, release)
             if len(name) > 65:
                 name = name[:65]
-            return bytearray(str(name)) + bytearray([0] * (66 - len(name)))
+            return (name + ("\0" * (66 - len(name)))).encode('ascii')
         self._writebytearray(RpmWriter.MAGIC)
         self._writebytearray(RpmWriter.MAJOR)
         self._writebytearray(RpmWriter.MINOR)
@@ -189,7 +201,7 @@ class RpmWriter(object):
             header_section += self._make_uint32(v[1]) # type
             header_section += self._make_uint32(len(store)) # offset
             header_section += self._make_uint32(v[2]) # count
-            store += bytearray(str(v[3])) # value
+            store += v[3] # value
         self._writebytearray(self._make_uint32(len(self.headers)))
         self._writebytearray(self._make_uint32(len(store)))
         self._writebytearray(header_section)
@@ -208,11 +220,11 @@ class RpmWriter(object):
                 written += len(data)
             return written
 
-        with gzip.GzipFile(fileobj=out, mode="w") as gzip_out:
+        with gzip.GzipFile(fileobj=out, mode="wb") as gzip_out:
             cpio_process = subprocess.Popen(["cpio", "-D", self.root, "-H", "crc", "-no"], stderr=self.stderr, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             for f in self.all_files:
                 filename = os.path.relpath(f, self.root)
-                cpio_process.stdin.write(filename + "\n")
+                cpio_process.stdin.write(filename.encode() + b"\n")
                 uncompressed_size += try_read(cpio_process.stdout, gzip_out)
 
             cpio_process.stdin.close()
