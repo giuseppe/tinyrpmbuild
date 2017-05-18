@@ -129,12 +129,12 @@ class RpmWriter(object):
     def add_header(self, tag, typ, count, value, pad=1):
         try:
             # this fails on python3
-            if isinstance(value, unicode):
+            if isinstance(value, unicode): #pylint: disable=unicode-builtin
                 value = bytearray(value.encode('ascii'))
-        except:
+        except NameError:
             pass
         if isinstance(value, str):
-            value = bytearray(value.encode('ascii'))
+            value = bytearray(value.encode('ascii')) #pylint: disable=no-member
         if not isinstance(value, bytearray):
             value = bytearray(value)
         self.headers.append([tag, typ, count, value, pad])
