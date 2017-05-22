@@ -136,7 +136,7 @@ class RpmWriter(object):
 
     def add_header(self, tag, typ, count, value, pad=1):
         try:
-            # this fails on python3
+            # The next line is expected to always fail under python3, in that case just continue.
             if isinstance(value, unicode): #pylint: disable=unicode-builtin
                 value = bytearray(value.encode('ascii'))
         except NameError:
