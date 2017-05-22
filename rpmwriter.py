@@ -8,6 +8,14 @@ import hashlib
 import tempfile
 import shutil
 
+# More information on the RPM file format can be found here:
+# http://ftp.rpm.org/max-rpm/s1-rpm-file-format-rpm-file-format.html
+# The same documentation was used to initially write this module.
+#
+# Only tags that are actually used in the code were added to the RpmWriter class.
+# The complete list is available here:
+# https://github.com/rpm-software-management/rpm/blob/master/lib/rpmtag.h
+
 class RpmWriter(object):
 
     MAGIC = [0xed, 0xab, 0xee, 0xdb]
